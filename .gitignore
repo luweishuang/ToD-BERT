@@ -1,2 +1,6 @@
 *pyc
 data/
+.idea/
+pretrained_models/
+utils/metrics/__pycache__/measures.cpython-36.pyc
+utils/multiwoz/__pycache__/fix_label.cpython-36.pyc

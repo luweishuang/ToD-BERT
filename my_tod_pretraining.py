@@ -1,18 +1,5 @@
 # coding=utf-8
-# Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
-# Copyright (c) 2018, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+
 """
 Fine-tuning the library models for language modeling on a text file (GPT, GPT-2, BERT, RoBERTa).
 GPT and GPT-2 are fine-tuned using a causal language modeling (CLM) loss while BERT and RoBERTa are fine-tuned
@@ -166,6 +153,7 @@ def my_load_and_cache_examples(args, tokenizer, text, dtype):
         block_size=args.block_size,
     )
     return dataset
+
 
 def set_seed(args):
     random.seed(args.seed)
@@ -378,7 +366,8 @@ def get_candidate_embeddings(uttr_sys_dict, tokenizer, model):
                 "emb":cls_rep[i, :].cpu().numpy()
             }
     return ToD_BERT_SYS_UTTR_EMB
-    
+
+
 def get_candidate_kmeans(args, uttr_sys_dict, tokenizer, model):
     ToD_BERT_SYS_UTTR_EMB = get_candidate_embeddings(uttr_sys_dict, tokenizer, model)
     
@@ -708,15 +697,11 @@ def evaluate(args, model, dev_loader, tokenizer, prefix=""):
 def main():
     parser = argparse.ArgumentParser()
 
-    # Required parameters
-    #parser.add_argument(
-    #    "--train_data_file", default=None, type=str, required=True, help="The input training data file (a text file)."
-    #)
     parser.add_argument(
         "--output_dir",
-        default=None,
+        default="save/pretrain/ToD-BERT-MLM",
         type=str,
-        required=True,
+        required=False,
         help="The output directory where the model predictions and checkpoints will be written.",
     )
     parser.add_argument("--model_type", default="bert", type=str, help="The model architecture to be fine-tuned.")
@@ -767,9 +752,9 @@ def main():
         "--do_lower_case", action="store_true", help="Set this flag if you are using an uncased model."
     )
 
-    parser.add_argument("--per_gpu_train_batch_size", default=4, type=int, help="Batch size per GPU/CPU for training.")
+    parser.add_argument("--per_gpu_train_batch_size", default=8, type=int, help="Batch size per GPU/CPU for training.")
     parser.add_argument(
-        "--per_gpu_eval_batch_size", default=4, type=int, help="Batch size per GPU/CPU for evaluation."
+        "--per_gpu_eval_batch_size", default=8, type=int, help="Batch size per GPU/CPU for evaluation."
     )
     parser.add_argument(
         "--gradient_accumulation_steps",
@@ -792,8 +777,8 @@ def main():
     )
     parser.add_argument("--warmup_steps", default=0, type=int, help="Linear warmup over warmup_steps.")
 
-    parser.add_argument("--logging_steps", type=int, default=100, help="Log every X updates steps.")
-    parser.add_argument("--save_steps", type=int, default=100, help="Save checkpoint every X updates steps.")
+    parser.add_argument("--logging_steps", type=int, default=1000, help="Log every X updates steps.")
+    parser.add_argument("--save_steps", type=int, default=2500, help="Save checkpoint every X updates steps.")
     parser.add_argument(
         "--save_total_limit",
         type=int,
@@ -885,7 +870,8 @@ def main():
     parser.add_argument(
         '-task','--task', 
         help='task in ["nlu", "dst", "dm", "nlg", "e2e"] to decide which dataloader to use', 
-        required=True)
+        required=False,
+        default="usdl")
     parser.add_argument(
         '-task_name', '--task_name', 
         help='', 
@@ -966,11 +952,6 @@ def main():
             "BERT and RoBERTa do not have LM heads but masked LM heads. They must be run using the --mlm "
             "flag (masked language modeling)."
         )
-    #if args.eval_data_file is None and args.do_eval:
-    #    raise ValueError(
-    #        "Cannot do evaluation without an evaluation data file. Either supply a file to --eval_data_file "
-    #        "or remove the --do_eval argument."
-    #    )
 
     if (
         os.path.exists(args.output_dir)
@@ -1077,14 +1058,13 @@ def main():
 
             # held-out mwoz for now
             if ds_name == "multiwoz":
-                datasets[ds_name] = {"train": data_trn, "dev":data_dev, "test": data_tst, "meta":data_meta}
+                datasets[ds_name] = {"train": data_trn, "dev": data_dev, "test": data_tst, "meta":data_meta}
             else:
                 datasets[ds_name] = {"train": data_trn + data_dev + data_tst, "dev":[], "test": [], "meta":data_meta}
 
-
             for d in datasets[ds_name]["train"]:
                 cand_uttr_sys.add(d["turn_sys"])
-                cand_uttr_sys.update(set([sent for si, sent in enumerate(d["dialog_history"]) if si%2==0]))
+                cand_uttr_sys.update(set([sent for si, sent in enumerate(d["dialog_history"]) if si % 2 == 0]))
 
         unified_meta = get_unified_meta(datasets)  
         args.train_batch_size = args.per_gpu_train_batch_size * max(1, args.n_gpu)
@@ -1147,4 +1127,14 @@ def main():
 
 
 if __name__ == "__main__":
+    # export CUDA_VISIBLE_DEVICES=0
+    # --task=usdl --model_type=bert --model_name_or_path=bert-base-uncased --output_dir=save/pretrain/ToD-BERT-MLM --only_last_turn
+    # --task=usdl --model_type=bert --model_name_or_path=bert-base-uncased --output_dir=save/pretrain/ToD-BERT-JNT --only_last_turn --add_rs_loss
+    # +
+    # --do_train --do_eval --mlm --do_lower_case --evaluate_during_training --save_steps=2500 --logging_steps=1000 --per_gpu_train_batch_size=8 --per_gpu_eval_batch_size=8
+
     main()
+
+'''
+--task=usdl --model_type=bert --model_name_or_path=bert-base-uncased --output_dir=save/pretrain/ToD-BERT-MLM --only_last_turn --do_train --do_eval --mlm --do_lower_case --evaluate_during_training --save_steps=2500 --logging_steps=1000 --per_gpu_train_batch_size=8 --per_gpu_eval_batch_size=8
+'''
